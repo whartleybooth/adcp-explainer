@@ -216,6 +216,76 @@
       margin: 0 12px;
     }
 
+    /* API Key Input */
+    .api-key-input {
+      max-width: 440px;
+      margin: 0 auto 40px;
+      text-align: center;
+    }
+
+    .api-key-input label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #00cfff;
+      margin-bottom: 10px;
+    }
+
+    .api-key-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .api-key-input input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #e0e0e0;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .api-key-input input:focus {
+      border-color: #00cfff;
+    }
+
+    .api-key-input button {
+      background: #00cfff;
+      border: none;
+      color: #0a0a0f;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .api-key-input button:hover {
+      opacity: 0.85;
+    }
+
+    .api-key-hint {
+      font-size: 0.75rem;
+      color: #5a5a6a;
+      margin-top: 8px;
+    }
+
+    .api-key-input.saved label {
+      color: #4caf50;
+    }
+
+    .api-key-input.saved input {
+      border-color: rgba(76, 175, 80, 0.3);
+    }
+
     /* Mobile */
     @media (max-width: 768px) {
       main {
@@ -252,6 +322,15 @@
       <p>The open standard for agentic advertising &mdash; explained for your role</p>
     </section>
 
+    <div class="api-key-input" id="apiKeySection">
+      <label for="apiKey">Anthropic API Key</label>
+      <div class="api-key-row">
+        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+        <button id="saveKeyBtn">Save</button>
+      </div>
+      <p class="api-key-hint">Your key is stored in this browser session only — never sent anywhere except the Anthropic API.</p>
+    </div>
+
     <div class="role-selector">
       <button class="role-btn" data-role="Brand / Advertiser">Brand / Advertiser</button>
       <button class="role-btn" data-role="Agency / Media Planner">Agency / Media Planner</button>
@@ -280,9 +359,31 @@
   </footer>
 
   <script>
-    // ─── Paste your Anthropic API key here ───
-    const API_KEY = "your-api-key-here";
-    // ─────────────────────────────────────────
+    let API_KEY = sessionStorage.getItem("adcp_api_key") || "";
+
+    const apiKeyInput = document.getElementById("apiKey");
+    const saveKeyBtn = document.getElementById("saveKeyBtn");
+    const apiKeySection = document.getElementById("apiKeySection");
+
+    if (API_KEY) {
+      apiKeyInput.value = API_KEY;
+      apiKeySection.classList.add("saved");
+      saveKeyBtn.textContent = "Saved";
+    }
+
+    saveKeyBtn.addEventListener("click", () => {
+      const key = apiKeyInput.value.trim();
+      if (!key) return;
+      API_KEY = key;
+      sessionStorage.setItem("adcp_api_key", key);
+      apiKeySection.classList.add("saved");
+      saveKeyBtn.textContent = "Saved";
+    });
+
+    apiKeyInput.addEventListener("input", () => {
+      apiKeySection.classList.remove("saved");
+      saveKeyBtn.textContent = "Save";
+    });
 
     const SYSTEM_PROMPT = `You are an expert in AdCP (Ad Context Protocol), the new open standard for agentic advertising. Here is the context you need:
 
@@ -302,6 +403,15 @@ AdCP (Ad Context Protocol) is an open standard for agentic advertising built on 
     });
 
     async function selectRole(btn) {
+      if (!API_KEY) {
+        apiKeyInput.focus();
+        apiKeySection.style.animation = "none";
+        apiKeySection.offsetHeight; // reflow
+        apiKeyInput.style.borderColor = "#ff6b6b";
+        setTimeout(() => { apiKeyInput.style.borderColor = ""; }, 1500);
+        return;
+      }
+
       const role = btn.dataset.role;
 
       buttons.forEach(b => b.classList.remove("active"));
