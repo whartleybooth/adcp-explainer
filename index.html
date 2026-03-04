@@ -400,6 +400,41 @@
       margin-bottom: 0;
     }
 
+    .news-latest-post {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 20px;
+      margin-bottom: 20px;
+    }
+
+    .news-latest-post .post-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #00cfff;
+      margin-bottom: 8px;
+    }
+
+    .news-latest-post .post-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #ffffff;
+      text-decoration: none;
+      line-height: 1.4;
+      display: inline-block;
+      transition: color 0.2s ease;
+    }
+
+    .news-latest-post .post-title:hover {
+      color: #00cfff;
+    }
+
+    .news-latest-post .post-date {
+      font-size: 0.85rem;
+      color: #6a6a7a;
+      margin-top: 4px;
+    }
+
     .news-prompt-message {
       color: #5a5a6a;
       font-size: 0.95rem;
@@ -478,6 +513,7 @@
           </svg>
         </button>
       </div>
+      <div class="news-latest-post" id="newsLatestPost" style="display: none;"></div>
       <div class="news-spinner" id="newsSpinner"></div>
       <div class="news-content" id="newsContent"></div>
       <div class="news-prompt-message" id="newsPrompt" style="display: none;">Enter your API key above to load the latest AdCP news digest.</div>
@@ -565,16 +601,21 @@
       const doc = parser.parseFromString(xml, "text/xml");
       const items = doc.querySelectorAll("item");
       const entries = [];
+      let latestPost = null;
       items.forEach((item, i) => {
         if (i >= 10) return;
         const title = item.querySelector("title")?.textContent || "";
         const pubDate = item.querySelector("pubDate")?.textContent || "";
+        const link = item.querySelector("link")?.textContent || "";
         const description = item.querySelector("description")?.textContent || "";
-        // Strip HTML tags from description
         const cleanDesc = description.replace(/<[^>]*>/g, "").substring(0, 300);
         entries.push(`- "${title}" (${pubDate}): ${cleanDesc}`);
+        if (i === 0) {
+          latestPost = { title, date: pubDate, link };
+        }
       });
-      return entries.length ? "Recent BOK on Ads articles:\n" + entries.join("\n") : "";
+      const text = entries.length ? "Recent BOK on Ads articles:\n" + entries.join("\n") : "";
+      return { text, latestPost };
     }
 
     function parseHTML(html) {
@@ -590,18 +631,21 @@
         NEWS_SOURCES.map(url => fetchViaProxy(url))
       );
       let combined = "";
+      let latestPost = null;
       results.forEach((result, i) => {
         if (result.status !== "fulfilled") return;
         const raw = result.value;
         const url = NEWS_SOURCES[i];
         if (url.includes("/feed")) {
-          combined += parseRSS(raw) + "\n\n";
+          const parsed = parseRSS(raw);
+          combined += parsed.text + "\n\n";
+          if (parsed.latestPost) latestPost = parsed.latestPost;
         } else {
           const text = parseHTML(raw);
           if (text) combined += `Content from ${url}:\n${text}\n\n`;
         }
       });
-      return combined.trim();
+      return { text: combined.trim(), latestPost };
     }
 
     async function loadNews() {
@@ -611,16 +655,31 @@
       if (newsController) newsController.abort();
       newsController = new AbortController();
 
+      const newsLatestPost = document.getElementById("newsLatestPost");
+
       // Reset UI
       newsContent.classList.remove("visible");
       newsContent.innerHTML = "";
       newsError.style.display = "none";
       newsPrompt.style.display = "none";
+      newsLatestPost.style.display = "none";
       newsSpinner.classList.add("visible");
       newsRefreshBtn.classList.add("spinning");
 
       try {
-        const sourceContent = await fetchAllSources();
+        const { text: sourceContent, latestPost } = await fetchAllSources();
+
+        // Show latest post title and date
+        if (latestPost) {
+          const dateStr = latestPost.date ? new Date(latestPost.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "";
+          newsLatestPost.innerHTML =
+            `<div class="post-label">Latest from BOK on Ads</div>` +
+            (latestPost.link
+              ? `<a class="post-title" href="${latestPost.link}" target="_blank" rel="noopener">${latestPost.title}</a>`
+              : `<span class="post-title">${latestPost.title}</span>`) +
+            (dateStr ? `<div class="post-date">${dateStr}</div>` : "");
+          newsLatestPost.style.display = "block";
+        }
 
         const newsSystemPrompt = `You are a concise news analyst covering AdCP (Ad Context Protocol) and the agentic advertising ecosystem.
 
