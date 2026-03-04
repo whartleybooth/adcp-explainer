@@ -286,6 +286,134 @@
       border-color: rgba(76, 175, 80, 0.3);
     }
 
+    /* News Section */
+    .news-section {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.02);
+      margin-bottom: 64px;
+    }
+
+    .news-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .news-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+
+    .news-refresh-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid rgba(0, 207, 255, 0.3);
+      color: #00cfff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .news-refresh-btn:hover {
+      border-color: #00cfff;
+      box-shadow: 0 0 20px rgba(0, 207, 255, 0.15);
+    }
+
+    .news-refresh-btn svg {
+      width: 18px;
+      height: 18px;
+      transition: transform 0.3s ease;
+    }
+
+    .news-refresh-btn.spinning svg {
+      animation: spin 0.8s linear infinite;
+    }
+
+    .news-spinner {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 32px 0;
+    }
+
+    .news-spinner.visible {
+      display: flex;
+    }
+
+    .news-spinner::after {
+      content: '';
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(0, 207, 255, 0.15);
+      border-top-color: #00cfff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .news-content {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .news-content.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .news-content ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .news-content li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 14px;
+      font-size: 1rem;
+      line-height: 1.75;
+      color: #c8c8d8;
+    }
+
+    .news-content li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 11px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00cfff;
+    }
+
+    .news-content li:last-child {
+      margin-bottom: 0;
+    }
+
+    .news-prompt-message {
+      color: #5a5a6a;
+      font-size: 0.95rem;
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    .news-error {
+      color: #ff6b6b;
+      font-size: 0.95rem;
+      text-align: center;
+      padding: 16px 0;
+    }
+
     /* Mobile */
     @media (max-width: 768px) {
       main {
@@ -312,6 +440,14 @@
       .what-section {
         padding: 28px 24px;
       }
+
+      .news-section {
+        padding: 28px 24px;
+      }
+
+      .news-header h2 {
+        font-size: 1.25rem;
+      }
     }
   </style>
 </head>
@@ -330,6 +466,23 @@
       </div>
       <p class="api-key-hint">Your key is stored in this browser session only — never sent anywhere except the Anthropic API.</p>
     </div>
+
+    <section class="news-section" id="newsSection">
+      <div class="news-header">
+        <h2>Latest AdCP News</h2>
+        <button class="news-refresh-btn" id="newsRefreshBtn" title="Refresh news">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="news-spinner" id="newsSpinner"></div>
+      <div class="news-content" id="newsContent"></div>
+      <div class="news-prompt-message" id="newsPrompt" style="display: none;">Enter your API key above to load the latest AdCP news digest.</div>
+      <div class="news-error" id="newsError" style="display: none;"></div>
+    </section>
 
     <div class="role-selector">
       <button class="role-btn" data-role="Brand / Advertiser">Brand / Advertiser</button>
@@ -378,6 +531,7 @@
       sessionStorage.setItem("adcp_api_key", key);
       apiKeySection.classList.add("saved");
       saveKeyBtn.textContent = "Saved";
+      loadNews();
     });
 
     apiKeyInput.addEventListener("input", () => {
@@ -385,6 +539,167 @@
       saveKeyBtn.textContent = "Save";
     });
 
+    // --- News Digest ---
+    const NEWS_SOURCES = [
+      "https://bokonads.com/feed",
+      "https://docs.adcontextprotocol.org/docs/intro"
+    ];
+
+    const newsSpinner = document.getElementById("newsSpinner");
+    const newsContent = document.getElementById("newsContent");
+    const newsPrompt = document.getElementById("newsPrompt");
+    const newsError = document.getElementById("newsError");
+    const newsRefreshBtn = document.getElementById("newsRefreshBtn");
+    let newsController = null;
+
+    async function fetchViaProxy(url) {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error(`Proxy fetch failed for ${url}`);
+      const data = await res.json();
+      return data.contents || "";
+    }
+
+    function parseRSS(xml) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, "text/xml");
+      const items = doc.querySelectorAll("item");
+      const entries = [];
+      items.forEach((item, i) => {
+        if (i >= 10) return;
+        const title = item.querySelector("title")?.textContent || "";
+        const pubDate = item.querySelector("pubDate")?.textContent || "";
+        const description = item.querySelector("description")?.textContent || "";
+        // Strip HTML tags from description
+        const cleanDesc = description.replace(/<[^>]*>/g, "").substring(0, 300);
+        entries.push(`- "${title}" (${pubDate}): ${cleanDesc}`);
+      });
+      return entries.length ? "Recent BOK on Ads articles:\n" + entries.join("\n") : "";
+    }
+
+    function parseHTML(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const text = doc.body?.textContent || "";
+      // Take first 2000 chars of meaningful content
+      return text.replace(/\s+/g, " ").trim().substring(0, 2000);
+    }
+
+    async function fetchAllSources() {
+      const results = await Promise.allSettled(
+        NEWS_SOURCES.map(url => fetchViaProxy(url))
+      );
+      let combined = "";
+      results.forEach((result, i) => {
+        if (result.status !== "fulfilled") return;
+        const raw = result.value;
+        const url = NEWS_SOURCES[i];
+        if (url.includes("/feed")) {
+          combined += parseRSS(raw) + "\n\n";
+        } else {
+          const text = parseHTML(raw);
+          if (text) combined += `Content from ${url}:\n${text}\n\n`;
+        }
+      });
+      return combined.trim();
+    }
+
+    async function loadNews() {
+      if (!API_KEY) return;
+
+      // Cancel any in-flight news request
+      if (newsController) newsController.abort();
+      newsController = new AbortController();
+
+      // Reset UI
+      newsContent.classList.remove("visible");
+      newsContent.innerHTML = "";
+      newsError.style.display = "none";
+      newsPrompt.style.display = "none";
+      newsSpinner.classList.add("visible");
+      newsRefreshBtn.classList.add("spinning");
+
+      try {
+        const sourceContent = await fetchAllSources();
+
+        const newsSystemPrompt = `You are a concise news analyst covering AdCP (Ad Context Protocol) and the agentic advertising ecosystem.
+
+${sourceContent ? "Here is content fetched from key sources:\n\n" + sourceContent : "No source content was available from the feeds."}
+
+Summarize the latest developments as a concise bullet-point digest. Each bullet should be one clear sentence. Include 5-8 bullets total.
+
+Instructions:
+1. Summarize the most notable recent items from the source content above (articles, docs updates)
+2. Also share anything else you know from your training about recent AdCP, agentic advertising, or related developments — not limited to the provided sources
+3. Focus on what is new, changing, or noteworthy
+4. Do NOT use markdown headers or bold text — just plain bullet points
+5. Return ONLY the bullet points, one per line, each starting with "- "`;
+
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": API_KEY,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1024,
+            system: newsSystemPrompt,
+            messages: [{ role: "user", content: "What are the latest developments in AdCP and agentic advertising? Give me a news digest." }]
+          }),
+          signal: newsController.signal
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error?.message || `API error ${res.status}`);
+        }
+
+        const data = await res.json();
+        const text = data.content?.[0]?.text || "No news available.";
+
+        newsSpinner.classList.remove("visible");
+        newsRefreshBtn.classList.remove("spinning");
+
+        // Parse bullet points into list items
+        const bullets = text.split("\n").filter(l => l.trim().startsWith("- "));
+        if (bullets.length) {
+          newsContent.innerHTML = "<ul>" +
+            bullets.map(b => `<li>${b.replace(/^-\s*/, "")}</li>`).join("") +
+            "</ul>";
+        } else {
+          // Fallback: render as paragraphs
+          newsContent.innerHTML = text.split(/\n\n+/).filter(p => p.trim())
+            .map(p => `<p style="color:#c8c8d8;line-height:1.75;margin-bottom:12px;">${p}</p>`).join("");
+        }
+
+        requestAnimationFrame(() => {
+          newsContent.classList.add("visible");
+        });
+      } catch (e) {
+        if (e.name === "AbortError") return;
+        newsSpinner.classList.remove("visible");
+        newsRefreshBtn.classList.remove("spinning");
+        newsError.textContent = `Failed to load news: ${e.message}`;
+        newsError.style.display = "block";
+      }
+    }
+
+    newsRefreshBtn.addEventListener("click", () => loadNews());
+
+    // Auto-load news on page load
+    function initNews() {
+      if (API_KEY) {
+        loadNews();
+      } else {
+        newsPrompt.style.display = "block";
+      }
+    }
+    initNews();
+
+    // --- Role Explainer ---
     const SYSTEM_PROMPT = `You are an expert in AdCP (Ad Context Protocol), the new open standard for agentic advertising. Here is the context you need:
 
 AdCP (Ad Context Protocol) is an open standard for agentic advertising built on top of MCP (Model Context Protocol). It lets AI agents discover inventory, negotiate deals, and execute media buys across ad platforms without human involvement. Governed by AgenticAdvertising.org. Current version is v3.0 beta. Key modules: Media Buy Protocol, Signals Activation Protocol, Creative Protocol, Brand Protocol. Key files: adagents.json (inventory discovery), brand.json (brand identity).`;
