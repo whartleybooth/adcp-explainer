@@ -7,6 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+               script-src 'self' 'unsafe-inline';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src https://fonts.gstatic.com;
+               connect-src https://api.anthropic.com https://corsproxy.io;
+               img-src 'self' data:;
+               frame-ancestors 'none';">
   <style>
     *, *::before, *::after {
       margin: 0;
@@ -99,38 +107,46 @@
       position: relative;
     }
 
-    .spinner {
+    .spinner,
+    .news-spinner {
       display: none;
       justify-content: center;
       align-items: center;
-      padding: 48px 0;
     }
 
-    .spinner.visible {
+    .spinner { padding: 48px 0; }
+    .news-spinner { padding: 32px 0; }
+
+    .spinner.visible,
+    .news-spinner.visible {
       display: flex;
     }
 
-    .spinner::after {
+    .spinner::after,
+    .news-spinner::after {
       content: '';
-      width: 32px;
-      height: 32px;
       border: 3px solid rgba(0, 207, 255, 0.15);
       border-top-color: #00cfff;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
 
+    .spinner::after { width: 32px; height: 32px; }
+    .news-spinner::after { width: 28px; height: 28px; }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    .explanation-content {
+    .explanation-content,
+    .news-content {
       opacity: 0;
       transform: translateY(12px);
       transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
-    .explanation-content.visible {
+    .explanation-content.visible,
+    .news-content.visible {
       opacity: 1;
       transform: translateY(0);
     }
@@ -337,38 +353,6 @@
 
     .news-refresh-btn.spinning svg {
       animation: spin 0.8s linear infinite;
-    }
-
-    .news-spinner {
-      display: none;
-      justify-content: center;
-      align-items: center;
-      padding: 32px 0;
-    }
-
-    .news-spinner.visible {
-      display: flex;
-    }
-
-    .news-spinner::after {
-      content: '';
-      width: 28px;
-      height: 28px;
-      border: 3px solid rgba(0, 207, 255, 0.15);
-      border-top-color: #00cfff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    .news-content {
-      opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-
-    .news-content.visible {
-      opacity: 1;
-      transform: translateY(0);
     }
 
     .news-content ul,
@@ -591,14 +575,14 @@
   </footer>
 
   <script>
-    let API_KEY = sessionStorage.getItem("adcp_api_key") || "";
+    let apiKey = sessionStorage.getItem("adcp_api_key") || "";
 
     const apiKeyInput = document.getElementById("apiKey");
     const saveKeyBtn = document.getElementById("saveKeyBtn");
     const apiKeySection = document.getElementById("apiKeySection");
 
-    if (API_KEY) {
-      apiKeyInput.value = API_KEY;
+    if (apiKey) {
+      apiKeyInput.value = apiKey;
       apiKeySection.classList.add("saved");
       saveKeyBtn.textContent = "Saved";
     }
@@ -606,7 +590,7 @@
     saveKeyBtn.addEventListener("click", () => {
       const key = apiKeyInput.value.trim();
       if (!key) return;
-      API_KEY = key;
+      apiKey = key;
       sessionStorage.setItem("adcp_api_key", key);
       apiKeySection.classList.add("saved");
       saveKeyBtn.textContent = "Saved";
@@ -617,6 +601,49 @@
       apiKeySection.classList.remove("saved");
       saveKeyBtn.textContent = "Save";
     });
+
+    // --- Shared Utilities ---
+    function escapeHTML(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function renderBullet(str) {
+      let safe = escapeHTML(str);
+      return safe.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener" style="color:#00cfff;text-decoration:none;">$1</a>');
+    }
+
+    function stripHTML(html) {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return doc.body?.textContent || "";
+    }
+
+    async function callClaude(systemPrompt, userMessage, maxTokens, signal) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }]
+        }),
+        signal
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data.content?.[0]?.text || "";
+    }
 
     // --- News Digest ---
     const NEWS_SOURCES = [
@@ -650,7 +677,7 @@
         const pubDate = item.querySelector("pubDate")?.textContent || "";
         const link = item.querySelector("link")?.textContent || "";
         const description = item.querySelector("description")?.textContent || "";
-        const cleanDesc = description.replace(/<[^>]*>/g, "").substring(0, 300);
+        const cleanDesc = stripHTML(description).substring(0, 300);
         entries.push(`- "${title}" (${pubDate}): ${cleanDesc}`);
         if (i === 0) {
           latestPost = { title, date: pubDate, link };
@@ -691,7 +718,7 @@
     }
 
     async function loadNews() {
-      if (!API_KEY) return;
+      if (!apiKey) return;
 
       // Cancel any in-flight news request
       if (newsController) newsController.abort();
@@ -747,46 +774,17 @@ Instructions:
 - Development or trend with [source link](https://example.com) if available
 - Another relevant industry development`;
 
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": API_KEY,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true",
-            "content-type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 2048,
-            system: newsSystemPrompt,
-            messages: [{ role: "user", content: "What are the latest developments in AdCP and agentic advertising? Give me a news digest." }]
-          }),
-          signal: newsController.signal
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error?.message || `API error ${res.status}`);
-        }
-
-        const data = await res.json();
-        const text = data.content?.[0]?.text || "No news available.";
+        const text = await callClaude(
+          newsSystemPrompt,
+          "What are the latest developments in AdCP and agentic advertising? Give me a news digest.",
+          2048,
+          newsController.signal
+        ) || "No news available.";
 
         newsSpinner.classList.remove("visible");
         newsRefreshBtn.classList.remove("spinning");
 
         // Parse grouped sections (## headers) or fall back to flat list
-        function escapeHTML(str) {
-          return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-
-        function renderBullet(str) {
-          // Escape HTML first, then convert markdown links [text](url) to <a> tags
-          let safe = escapeHTML(str);
-          return safe.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-            '<a href="$2" target="_blank" rel="noopener" style="color:#00cfff;text-decoration:none;">$1</a>');
-        }
-
         const lines = text.split("\n");
         const sections = [];
         let currentSection = null;
@@ -878,7 +876,7 @@ Instructions:
 
     // Auto-load news on page load
     function initNews() {
-      if (API_KEY) {
+      if (apiKey) {
         loadNews();
       } else {
         newsPrompt.style.display = "block";
@@ -905,7 +903,7 @@ AdCP (Ad Context Protocol) is an open standard for agentic advertising built on 
     });
 
     async function selectRole(btn) {
-      if (!API_KEY) {
+      if (!apiKey) {
         apiKeyInput.focus();
         apiKeySection.style.animation = "none";
         apiKeySection.offsetHeight; // reflow
@@ -929,37 +927,19 @@ AdCP (Ad Context Protocol) is an open standard for agentic advertising built on 
       spinner.classList.add("visible");
 
       try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": API_KEY,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true",
-            "content-type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1024,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: "user", content: buildUserPrompt(role) }]
-          }),
-          signal: currentController.signal
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error?.message || `API error ${res.status}`);
-        }
-
-        const data = await res.json();
-        const text = data.content?.[0]?.text || "No response received.";
+        const text = await callClaude(
+          SYSTEM_PROMPT,
+          buildUserPrompt(role),
+          1024,
+          currentController.signal
+        ) || "No response received.";
 
         spinner.classList.remove("visible");
 
         const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
         explanation.innerHTML =
-          `<div class="explanation-label">AdCP for ${role}</div>` +
-          paragraphs.map(p => `<p>${p}</p>`).join("");
+          `<div class="explanation-label">AdCP for ${escapeHTML(role)}</div>` +
+          paragraphs.map(p => `<p>${escapeHTML(p)}</p>`).join("");
 
         // Trigger fade-in on next frame
         requestAnimationFrame(() => {
@@ -968,7 +948,7 @@ AdCP (Ad Context Protocol) is an open standard for agentic advertising built on 
       } catch (e) {
         if (e.name === "AbortError") return;
         spinner.classList.remove("visible");
-        explanation.innerHTML = `<div class="error-message">Something went wrong: ${e.message}</div>`;
+        explanation.innerHTML = `<div class="error-message">Something went wrong: ${escapeHTML(e.message)}</div>`;
         explanation.classList.add("visible");
       }
     }
