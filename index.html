@@ -589,11 +589,10 @@
     let newsController = null;
 
     async function fetchViaProxy(url) {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
       const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`Proxy fetch failed for ${url}`);
-      const data = await res.json();
-      return data.contents || "";
+      return await res.text();
     }
 
     function parseRSS(xml) {
