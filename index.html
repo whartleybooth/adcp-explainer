@@ -439,6 +439,14 @@
       margin-top: 4px;
     }
 
+    .news-source-item {
+      margin-top: 14px;
+    }
+
+    .news-source-item:first-child {
+      margin-top: 0;
+    }
+
     .news-digest-card {
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 16px;
@@ -703,17 +711,37 @@
       try {
         const { text: sourceContent, latestPost } = await fetchAllSources();
 
-        // Show latest post title and date
+        // Show sources summary
+        let sourcesHTML = '<div class="post-label">Sources</div>';
+
+        // BOK on Ads
+        sourcesHTML += '<div class="news-source-item">';
         if (latestPost) {
           const dateStr = latestPost.date ? new Date(latestPost.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "";
-          newsLatestPost.innerHTML =
-            `<div class="post-label">Latest from BOK on Ads</div>` +
-            (latestPost.link
-              ? `<a class="post-title" href="${latestPost.link}" target="_blank" rel="noopener">${latestPost.title}</a>`
-              : `<span class="post-title">${latestPost.title}</span>`) +
-            (dateStr ? `<div class="post-date">${dateStr}</div>` : "");
-          newsLatestPost.style.display = "block";
+          sourcesHTML += (latestPost.link
+            ? `<a class="post-title" href="${latestPost.link}" target="_blank" rel="noopener">${latestPost.title}</a>`
+            : `<span class="post-title">${latestPost.title}</span>`);
+          sourcesHTML += `<div class="post-date">BOK on Ads RSS${dateStr ? ' · ' + dateStr : ''}</div>`;
+        } else {
+          sourcesHTML += `<a class="post-title" href="https://bokonads.com" target="_blank" rel="noopener">BOK on Ads</a>`;
+          sourcesHTML += `<div class="post-date">bokonads.com/feed</div>`;
         }
+        sourcesHTML += '</div>';
+
+        // AdCP Documentation
+        sourcesHTML += '<div class="news-source-item">';
+        sourcesHTML += `<a class="post-title" href="https://docs.adcontextprotocol.org/docs/intro" target="_blank" rel="noopener">AdCP Documentation</a>`;
+        sourcesHTML += `<div class="post-date">docs.adcontextprotocol.org</div>`;
+        sourcesHTML += '</div>';
+
+        // Broader Industry
+        sourcesHTML += '<div class="news-source-item">';
+        sourcesHTML += `<span class="post-title">Broader Industry</span>`;
+        sourcesHTML += `<div class="post-date">Claude's training knowledge</div>`;
+        sourcesHTML += '</div>';
+
+        newsLatestPost.innerHTML = sourcesHTML;
+        newsLatestPost.style.display = "block";
 
         const newsSystemPrompt = `You are a concise news analyst covering AdCP (Ad Context Protocol) and the agentic advertising ecosystem.
 
