@@ -621,9 +621,7 @@
     // --- News Digest ---
     const NEWS_SOURCES = [
       "https://bokonads.com/feed",
-      "https://docs.adcontextprotocol.org/docs/intro",
-      "https://docs.adcontextprotocol.org/docs/reference/whats-new-in-v3",
-      "https://docs.adcontextprotocol.org/docs/protocol/architecture"
+      "https://docs.adcontextprotocol.org/docs/intro"
     ];
 
     const newsSpinner = document.getElementById("newsSpinner");
@@ -717,26 +715,32 @@
 
 ${sourceContent ? "Here is content fetched from key sources:\n\n" + sourceContent : "No source content was available from the feeds."}
 
+Key AdCP v3.0 context (use this for the AdCP Documentation section):
+- Current version: AdCP 3.0 Release Candidate (v2.5 available for production)
+- Architecture: four layers — Identity (Brand Protocol via brand.json, Registry API, Accounts), Transaction Domains (Media Buy, Creative, Signals, Sponsored Intelligence), Governance (cross-cutting brand suitability), and Ecosystem (orchestration + AXE execution engine)
+- New in v3: Brand Protocol (buy-side identity via brand.json), Registry API (entity resolution), Proposals & Delivery Forecasts, Accounts Protocol, 13 Catalog types, Capability Discovery (runtime get_adcp_capabilities), Governance Protocol, Sponsored Intelligence Protocol, Signal Catalogs
+- Breaking changes: 9→19 media channels, pricing field renames, creative_assignments replaces creative_ids, geo targeting requires explicit system, optimization_goals is now an array
+- Client libraries: JavaScript/TypeScript (npm) and Python (pip)
+
 Summarize the latest developments as a concise bullet-point digest grouped by source. Each bullet should be one clear sentence.
 
 Instructions:
-1. Group bullets under markdown ## headers by source category
+1. Group bullets under markdown ## headers — you MUST include all three sections
 2. For BOK on Ads: summarize the most notable recent articles from the RSS feed
-3. For AdCP Documentation: summarize what AdCP is, the current version and what's new in it, key architectural components, and any notable recent changes or features — treat this as a living overview of the protocol itself
-4. For Broader Industry: share relevant recent developments from your training knowledge about agentic advertising, AI in advertising, and related trends — include source links in markdown format like [Source Name](https://url) where you can
+3. For AdCP Documentation: provide a living overview — current version, what's new, key architecture, notable features or changes
+4. For Broader Industry: share relevant recent developments from your training knowledge about agentic advertising, AI in advertising, and related trends — include source links in markdown format like [Source Name](https://url) where possible
 5. Focus on what is new, changing, or noteworthy
 6. Do NOT repeat the source name within bullet text — the header already provides it
-7. Omit any section that has no relevant content rather than padding with filler
-8. Do NOT use bold text — just plain bullet points under each header
-9. Return ONLY the headers and bullet points in this exact format:
+7. Do NOT use bold text — just plain bullet points under each header
+8. Return ONLY the headers and bullet points in this exact format:
 
 ## BOK on Ads
 - First insight from the blog feed
 - Second insight from the blog feed
 
 ## AdCP Documentation
-- Current version is X.Y — summary of what's new
-- The protocol architecture consists of...
+- Current version is 3.0 RC — summary of what's new
+- The protocol architecture consists of four layers...
 - Key feature or change worth noting
 
 ## Broader Industry
@@ -753,7 +757,7 @@ Instructions:
           },
           body: JSON.stringify({
             model: "claude-sonnet-4-20250514",
-            max_tokens: 1024,
+            max_tokens: 2048,
             system: newsSystemPrompt,
             messages: [{ role: "user", content: "What are the latest developments in AdCP and agentic advertising? Give me a news digest." }]
           }),
