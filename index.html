@@ -371,12 +371,14 @@
       transform: translateY(0);
     }
 
-    .news-content ul {
+    .news-content ul,
+    .news-latest-post ul {
       list-style: none;
       padding: 0;
     }
 
-    .news-content li {
+    .news-content li,
+    .news-latest-post li {
       position: relative;
       padding-left: 20px;
       margin-bottom: 14px;
@@ -385,7 +387,8 @@
       color: #c8c8d8;
     }
 
-    .news-content li::before {
+    .news-content li::before,
+    .news-latest-post li::before {
       content: '';
       position: absolute;
       left: 0;
@@ -396,7 +399,8 @@
       background: #00cfff;
     }
 
-    .news-content li:last-child {
+    .news-content li:last-child,
+    .news-latest-post li:last-child {
       margin-bottom: 0;
     }
 
@@ -435,25 +439,15 @@
       margin-top: 4px;
     }
 
-    .news-source-group {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      padding-bottom: 20px;
-      margin-bottom: 20px;
+    .news-digest-section {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
-    .news-source-group:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
-    }
-
-    .news-source-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #00cfff;
-      margin-bottom: 8px;
+    .news-digest-section.visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .news-prompt-message {
@@ -680,6 +674,7 @@
       // Reset UI
       newsContent.classList.remove("visible");
       newsContent.innerHTML = "";
+      document.querySelectorAll(".news-digest-section").forEach(el => el.remove());
       newsError.style.display = "none";
       newsPrompt.style.display = "none";
       newsLatestPost.style.display = "none";
@@ -786,22 +781,36 @@ Instructions:
           sections.push(currentSection);
         }
 
+        const newsSection = document.getElementById("newsSection");
+
         if (sections.length && sections.some(s => s.header)) {
-          // Render grouped sections
-          newsContent.innerHTML = sections
-            .filter(s => s.bullets.length > 0)
-            .map(s => {
-              const label = s.header
-                ? `<div class="news-source-label">${escapeHTML(s.header)}</div>`
-                : "";
-              const items = s.bullets
-                .map(b => `<li>${escapeHTML(b)}</li>`)
-                .join("");
-              return `<div class="news-source-group">${label}<ul>${items}</ul></div>`;
-            })
-            .join("");
+          // Render each source group as its own section, sibling to newsLatestPost
+          const filtered = sections.filter(s => s.bullets.length > 0);
+          filtered.forEach((s, i) => {
+            const div = document.createElement("div");
+            div.className = "news-latest-post news-digest-section";
+            if (i === filtered.length - 1) {
+              div.style.borderBottom = "none";
+              div.style.paddingBottom = "0";
+              div.style.marginBottom = "0";
+            }
+            const label = s.header
+              ? `<div class="post-label">${escapeHTML(s.header)}</div>`
+              : "";
+            const items = s.bullets
+              .map(b => `<li>${escapeHTML(b)}</li>`)
+              .join("");
+            div.innerHTML = `${label}<ul>${items}</ul>`;
+            newsSection.insertBefore(div, newsPrompt);
+          });
+
+          requestAnimationFrame(() => {
+            document.querySelectorAll(".news-digest-section").forEach(el => {
+              el.classList.add("visible");
+            });
+          });
         } else {
-          // Fallback: flat bullet list
+          // Fallback: flat bullet list inside newsContent
           const allBullets = lines.filter(l => l.trim().startsWith("- "));
           if (allBullets.length) {
             newsContent.innerHTML = "<ul>" +
@@ -811,11 +820,11 @@ Instructions:
             newsContent.innerHTML = text.split(/\n\n+/).filter(p => p.trim())
               .map(p => `<p style="color:#c8c8d8;line-height:1.75;margin-bottom:12px;">${escapeHTML(p)}</p>`).join("");
           }
-        }
 
-        requestAnimationFrame(() => {
-          newsContent.classList.add("visible");
-        });
+          requestAnimationFrame(() => {
+            newsContent.classList.add("visible");
+          });
+        }
       } catch (e) {
         if (e.name === "AbortError") return;
         newsSpinner.classList.remove("visible");
