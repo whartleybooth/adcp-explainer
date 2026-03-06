@@ -372,13 +372,13 @@
     }
 
     .news-content ul,
-    .news-digest-card ul {
+    .news-latest-post ul {
       list-style: none;
       padding: 0;
     }
 
     .news-content li,
-    .news-digest-card li {
+    .news-latest-post li {
       position: relative;
       padding-left: 20px;
       margin-bottom: 14px;
@@ -388,7 +388,7 @@
     }
 
     .news-content li::before,
-    .news-digest-card li::before {
+    .news-latest-post li::before {
       content: '';
       position: absolute;
       left: 0;
@@ -400,14 +400,12 @@
     }
 
     .news-content li:last-child,
-    .news-digest-card li:last-child {
+    .news-latest-post li:last-child {
       margin-bottom: 0;
     }
 
     .news-latest-post {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      padding-bottom: 20px;
-      margin-bottom: 20px;
+      padding-top: 4px;
     }
 
     .news-latest-post .post-label {
@@ -440,36 +438,44 @@
     }
 
     .news-source-item {
-      margin-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 16px;
+      margin-top: 16px;
     }
 
     .news-source-item:first-child {
+      border-top: none;
+      padding-top: 0;
       margin-top: 0;
     }
 
-    .news-digest-card {
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 16px;
-      padding: 40px;
-      background: rgba(255, 255, 255, 0.02);
-      margin-bottom: 16px;
-      opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
+    .source-toggle {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      cursor: pointer;
+      gap: 12px;
     }
 
-    .news-digest-card.visible {
-      opacity: 1;
-      transform: translateY(0);
+    .source-toggle .chevron {
+      color: #6a6a7a;
+      font-size: 0.65rem;
+      transition: transform 0.2s ease;
+      margin-top: 7px;
+      flex-shrink: 0;
     }
 
-    .news-digest-card .post-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #00cfff;
-      margin-bottom: 10px;
+    .news-source-item.expanded .chevron {
+      transform: rotate(90deg);
+    }
+
+    .source-details {
+      display: none;
+      padding-top: 14px;
+    }
+
+    .news-source-item.expanded .source-details {
+      display: block;
     }
 
     .news-prompt-message {
@@ -514,10 +520,6 @@
       }
 
       .news-section {
-        padding: 28px 24px;
-      }
-
-      .news-digest-card {
         padding: 28px 24px;
       }
 
@@ -700,8 +702,6 @@
       // Reset UI
       newsContent.classList.remove("visible");
       newsContent.innerHTML = "";
-      document.querySelectorAll(".news-digest-card").forEach(el => el.remove());
-      document.getElementById("newsSection").style.marginBottom = "";
       newsError.style.display = "none";
       newsPrompt.style.display = "none";
       newsLatestPost.style.display = "none";
@@ -710,38 +710,6 @@
 
       try {
         const { text: sourceContent, latestPost } = await fetchAllSources();
-
-        // Show sources summary
-        let sourcesHTML = '<div class="post-label">Sources</div>';
-
-        // BOK on Ads
-        sourcesHTML += '<div class="news-source-item">';
-        if (latestPost) {
-          const dateStr = latestPost.date ? new Date(latestPost.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "";
-          sourcesHTML += (latestPost.link
-            ? `<a class="post-title" href="${latestPost.link}" target="_blank" rel="noopener">${latestPost.title}</a>`
-            : `<span class="post-title">${latestPost.title}</span>`);
-          sourcesHTML += `<div class="post-date">BOK on Ads RSS${dateStr ? ' · ' + dateStr : ''}</div>`;
-        } else {
-          sourcesHTML += `<a class="post-title" href="https://bokonads.com" target="_blank" rel="noopener">BOK on Ads</a>`;
-          sourcesHTML += `<div class="post-date">bokonads.com/feed</div>`;
-        }
-        sourcesHTML += '</div>';
-
-        // AdCP Documentation
-        sourcesHTML += '<div class="news-source-item">';
-        sourcesHTML += `<a class="post-title" href="https://docs.adcontextprotocol.org/docs/intro" target="_blank" rel="noopener">AdCP Documentation</a>`;
-        sourcesHTML += `<div class="post-date">docs.adcontextprotocol.org</div>`;
-        sourcesHTML += '</div>';
-
-        // Broader Industry
-        sourcesHTML += '<div class="news-source-item">';
-        sourcesHTML += `<span class="post-title">Broader Industry</span>`;
-        sourcesHTML += `<div class="post-date">Claude's training knowledge</div>`;
-        sourcesHTML += '</div>';
-
-        newsLatestPost.innerHTML = sourcesHTML;
-        newsLatestPost.style.display = "block";
 
         const newsSystemPrompt = `You are a concise news analyst covering AdCP (Ad Context Protocol) and the agentic advertising ecosystem.
 
@@ -828,35 +796,42 @@ Instructions:
           sections.push(currentSection);
         }
 
-        const newsSection = document.getElementById("newsSection");
+        // Build source metadata for each section
+        const sourceMeta = {
+          "bok on ads": latestPost ? {
+            title: latestPost.title,
+            link: latestPost.link,
+            date: latestPost.date ? new Date(latestPost.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "",
+            sub: "BOK on Ads RSS"
+          } : { title: "BOK on Ads", link: "https://bokonads.com", date: "", sub: "bokonads.com/feed" },
+          "adcp documentation": { title: "AdCP Documentation", link: "https://docs.adcontextprotocol.org/docs/intro", date: "", sub: "docs.adcontextprotocol.org" },
+          "broader industry": { title: "Broader Industry", link: "", date: "", sub: "Claude's training knowledge" }
+        };
 
         if (sections.length && sections.some(s => s.header)) {
-          // Render each source group as its own card after the news section
           const filtered = sections.filter(s => s.bullets.length > 0);
-          newsSection.style.marginBottom = "16px";
-          let insertAfter = newsSection;
-          filtered.forEach((s, i) => {
-            const div = document.createElement("div");
-            div.className = "news-digest-card";
-            if (i === filtered.length - 1) {
-              div.style.marginBottom = "64px";
-            }
-            const label = s.header
-              ? `<div class="post-label">${escapeHTML(s.header)}</div>`
-              : "";
-            const items = s.bullets
-              .map(b => `<li>${escapeHTML(b)}</li>`)
-              .join("");
-            div.innerHTML = `${label}<ul>${items}</ul>`;
-            insertAfter.insertAdjacentElement("afterend", div);
-            insertAfter = div;
+          let html = '<div class="post-label">Sources</div>';
+
+          filtered.forEach(s => {
+            const key = (s.header || "").toLowerCase();
+            const meta = sourceMeta[key] || { title: s.header, link: "", date: "", sub: "" };
+            const titleEl = meta.link
+              ? `<a class="post-title" href="${escapeHTML(meta.link)}" target="_blank" rel="noopener">${escapeHTML(meta.title)}</a>`
+              : `<span class="post-title">${escapeHTML(meta.title)}</span>`;
+            const datePart = meta.date ? " · " + meta.date : "";
+            const items = s.bullets.map(b => `<li>${escapeHTML(b)}</li>`).join("");
+
+            html += `<div class="news-source-item">` +
+              `<div class="source-toggle" onclick="if(event.target.tagName!=='A'){this.parentElement.classList.toggle('expanded')}">` +
+              `<div>${titleEl}<div class="post-date">${escapeHTML(meta.sub)}${datePart}</div></div>` +
+              `<span class="chevron">&#9656;</span>` +
+              `</div>` +
+              `<div class="source-details"><ul>${items}</ul></div>` +
+              `</div>`;
           });
 
-          requestAnimationFrame(() => {
-            document.querySelectorAll(".news-digest-card").forEach(el => {
-              el.classList.add("visible");
-            });
-          });
+          newsLatestPost.innerHTML = html;
+          newsLatestPost.style.display = "block";
         } else {
           // Fallback: flat bullet list inside newsContent
           const allBullets = lines.filter(l => l.trim().startsWith("- "));
