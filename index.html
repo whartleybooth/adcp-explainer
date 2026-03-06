@@ -372,13 +372,13 @@
     }
 
     .news-content ul,
-    .news-latest-post ul {
+    .news-digest-card ul {
       list-style: none;
       padding: 0;
     }
 
     .news-content li,
-    .news-latest-post li {
+    .news-digest-card li {
       position: relative;
       padding-left: 20px;
       margin-bottom: 14px;
@@ -388,7 +388,7 @@
     }
 
     .news-content li::before,
-    .news-latest-post li::before {
+    .news-digest-card li::before {
       content: '';
       position: absolute;
       left: 0;
@@ -400,7 +400,7 @@
     }
 
     .news-content li:last-child,
-    .news-latest-post li:last-child {
+    .news-digest-card li:last-child {
       margin-bottom: 0;
     }
 
@@ -439,15 +439,29 @@
       margin-top: 4px;
     }
 
-    .news-digest-section {
+    .news-digest-card {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.02);
+      margin-bottom: 16px;
       opacity: 0;
       transform: translateY(12px);
       transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
-    .news-digest-section.visible {
+    .news-digest-card.visible {
       opacity: 1;
       transform: translateY(0);
+    }
+
+    .news-digest-card .post-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #00cfff;
+      margin-bottom: 10px;
     }
 
     .news-prompt-message {
@@ -492,6 +506,10 @@
       }
 
       .news-section {
+        padding: 28px 24px;
+      }
+
+      .news-digest-card {
         padding: 28px 24px;
       }
 
@@ -674,7 +692,8 @@
       // Reset UI
       newsContent.classList.remove("visible");
       newsContent.innerHTML = "";
-      document.querySelectorAll(".news-digest-section").forEach(el => el.remove());
+      document.querySelectorAll(".news-digest-card").forEach(el => el.remove());
+      document.getElementById("newsSection").style.marginBottom = "";
       newsError.style.display = "none";
       newsPrompt.style.display = "none";
       newsLatestPost.style.display = "none";
@@ -784,15 +803,15 @@ Instructions:
         const newsSection = document.getElementById("newsSection");
 
         if (sections.length && sections.some(s => s.header)) {
-          // Render each source group as its own section, sibling to newsLatestPost
+          // Render each source group as its own card after the news section
           const filtered = sections.filter(s => s.bullets.length > 0);
+          newsSection.style.marginBottom = "16px";
+          let insertAfter = newsSection;
           filtered.forEach((s, i) => {
             const div = document.createElement("div");
-            div.className = "news-latest-post news-digest-section";
+            div.className = "news-digest-card";
             if (i === filtered.length - 1) {
-              div.style.borderBottom = "none";
-              div.style.paddingBottom = "0";
-              div.style.marginBottom = "0";
+              div.style.marginBottom = "64px";
             }
             const label = s.header
               ? `<div class="post-label">${escapeHTML(s.header)}</div>`
@@ -801,11 +820,12 @@ Instructions:
               .map(b => `<li>${escapeHTML(b)}</li>`)
               .join("");
             div.innerHTML = `${label}<ul>${items}</ul>`;
-            newsSection.insertBefore(div, newsPrompt);
+            insertAfter.insertAdjacentElement("afterend", div);
+            insertAfter = div;
           });
 
           requestAnimationFrame(() => {
-            document.querySelectorAll(".news-digest-section").forEach(el => {
+            document.querySelectorAll(".news-digest-card").forEach(el => {
               el.classList.add("visible");
             });
           });
