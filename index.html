@@ -621,7 +621,9 @@
     // --- News Digest ---
     const NEWS_SOURCES = [
       "https://bokonads.com/feed",
-      "https://docs.adcontextprotocol.org/docs/intro"
+      "https://docs.adcontextprotocol.org/docs/intro",
+      "https://docs.adcontextprotocol.org/docs/reference/whats-new-in-v3",
+      "https://docs.adcontextprotocol.org/docs/protocol/architecture"
     ];
 
     const newsSpinner = document.getElementById("newsSpinner");
@@ -719,23 +721,27 @@ Summarize the latest developments as a concise bullet-point digest grouped by so
 
 Instructions:
 1. Group bullets under markdown ## headers by source category
-2. Summarize the most notable recent items from the source content above (articles, docs updates)
-3. Also share anything else you know from your training about recent AdCP, agentic advertising, or related developments
-4. Focus on what is new, changing, or noteworthy
-5. Do NOT repeat the source name within bullet text — the header already provides it
-6. Omit any section that has no relevant content rather than padding with filler
-7. Do NOT use bold text — just plain bullet points under each header
-8. Return ONLY the headers and bullet points in this exact format:
+2. For BOK on Ads: summarize the most notable recent articles from the RSS feed
+3. For AdCP Documentation: summarize what AdCP is, the current version and what's new in it, key architectural components, and any notable recent changes or features — treat this as a living overview of the protocol itself
+4. For Broader Industry: share relevant recent developments from your training knowledge about agentic advertising, AI in advertising, and related trends — include source links in markdown format like [Source Name](https://url) where you can
+5. Focus on what is new, changing, or noteworthy
+6. Do NOT repeat the source name within bullet text — the header already provides it
+7. Omit any section that has no relevant content rather than padding with filler
+8. Do NOT use bold text — just plain bullet points under each header
+9. Return ONLY the headers and bullet points in this exact format:
 
 ## BOK on Ads
 - First insight from the blog feed
 - Second insight from the blog feed
 
 ## AdCP Documentation
-- Update or highlight from the docs
+- Current version is X.Y — summary of what's new
+- The protocol architecture consists of...
+- Key feature or change worth noting
 
 ## Broader Industry
-- Related development from your training knowledge`;
+- Development or trend with [source link](https://example.com) if available
+- Another relevant industry development`;
 
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -768,6 +774,13 @@ Instructions:
         // Parse grouped sections (## headers) or fall back to flat list
         function escapeHTML(str) {
           return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function renderBullet(str) {
+          // Escape HTML first, then convert markdown links [text](url) to <a> tags
+          let safe = escapeHTML(str);
+          return safe.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+            '<a href="$2" target="_blank" rel="noopener" style="color:#00cfff;text-decoration:none;">$1</a>');
         }
 
         const lines = text.split("\n");
@@ -804,7 +817,7 @@ Instructions:
             date: latestPost.date ? new Date(latestPost.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "",
             sub: "BOK on Ads RSS"
           } : { title: "BOK on Ads", link: "https://bokonads.com", date: "", sub: "bokonads.com/feed" },
-          "adcp documentation": { title: "AdCP Documentation", link: "https://docs.adcontextprotocol.org/docs/intro", date: "", sub: "docs.adcontextprotocol.org" },
+          "adcp documentation": { title: "AdCP Documentation", link: "https://docs.adcontextprotocol.org", date: "", sub: "docs.adcontextprotocol.org · v3.0 RC" },
           "broader industry": { title: "Broader Industry", link: "", date: "", sub: "Claude's training knowledge" }
         };
 
@@ -819,7 +832,7 @@ Instructions:
               ? `<a class="post-title" href="${escapeHTML(meta.link)}" target="_blank" rel="noopener">${escapeHTML(meta.title)}</a>`
               : `<span class="post-title">${escapeHTML(meta.title)}</span>`;
             const datePart = meta.date ? " · " + meta.date : "";
-            const items = s.bullets.map(b => `<li>${escapeHTML(b)}</li>`).join("");
+            const items = s.bullets.map(b => `<li>${renderBullet(b)}</li>`).join("");
 
             html += `<div class="news-source-item">` +
               `<div class="source-toggle" onclick="if(event.target.tagName!=='A'){this.parentElement.classList.toggle('expanded')}">` +
@@ -837,7 +850,7 @@ Instructions:
           const allBullets = lines.filter(l => l.trim().startsWith("- "));
           if (allBullets.length) {
             newsContent.innerHTML = "<ul>" +
-              allBullets.map(b => `<li>${escapeHTML(b.replace(/^-\s*/, ""))}</li>`).join("") +
+              allBullets.map(b => `<li>${renderBullet(b.replace(/^-\s*/, ""))}</li>`).join("") +
               "</ul>";
           } else {
             newsContent.innerHTML = text.split(/\n\n+/).filter(p => p.trim())
