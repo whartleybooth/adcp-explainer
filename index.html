@@ -435,6 +435,27 @@
       margin-top: 4px;
     }
 
+    .news-source-group {
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .news-source-group:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .news-source-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #00cfff;
+      margin-bottom: 10px;
+    }
+
     .news-prompt-message {
       color: #5a5a6a;
       font-size: 0.95rem;
@@ -684,14 +705,27 @@
 
 ${sourceContent ? "Here is content fetched from key sources:\n\n" + sourceContent : "No source content was available from the feeds."}
 
-Summarize the latest developments as a concise bullet-point digest. Each bullet should be one clear sentence. Include 5-8 bullets total.
+Summarize the latest developments as a concise bullet-point digest grouped by source. Each bullet should be one clear sentence.
 
 Instructions:
-1. Summarize the most notable recent items from the source content above (articles, docs updates)
-2. Also share anything else you know from your training about recent AdCP, agentic advertising, or related developments — not limited to the provided sources
-3. Focus on what is new, changing, or noteworthy
-4. Do NOT use markdown headers or bold text — just plain bullet points
-5. Return ONLY the bullet points, one per line, each starting with "- "`;
+1. Group bullets under markdown ## headers by source category
+2. Summarize the most notable recent items from the source content above (articles, docs updates)
+3. Also share anything else you know from your training about recent AdCP, agentic advertising, or related developments
+4. Focus on what is new, changing, or noteworthy
+5. Do NOT repeat the source name within bullet text — the header already provides it
+6. Omit any section that has no relevant content rather than padding with filler
+7. Do NOT use bold text — just plain bullet points under each header
+8. Return ONLY the headers and bullet points in this exact format:
+
+## BOK on Ads
+- First insight from the blog feed
+- Second insight from the blog feed
+
+## AdCP Documentation
+- Update or highlight from the docs
+
+## Broader Industry
+- Related development from your training knowledge`;
 
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -721,16 +755,62 @@ Instructions:
         newsSpinner.classList.remove("visible");
         newsRefreshBtn.classList.remove("spinning");
 
-        // Parse bullet points into list items
-        const bullets = text.split("\n").filter(l => l.trim().startsWith("- "));
-        if (bullets.length) {
-          newsContent.innerHTML = "<ul>" +
-            bullets.map(b => `<li>${b.replace(/^-\s*/, "")}</li>`).join("") +
-            "</ul>";
+        // Parse grouped sections (## headers) or fall back to flat list
+        function escapeHTML(str) {
+          return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        const lines = text.split("\n");
+        const sections = [];
+        let currentSection = null;
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("## ")) {
+            if (currentSection && currentSection.bullets.length > 0) {
+              sections.push(currentSection);
+            }
+            currentSection = { header: trimmed.replace(/^##\s*/, ""), bullets: [] };
+          } else if (trimmed.startsWith("- ") && currentSection) {
+            currentSection.bullets.push(trimmed.replace(/^-\s*/, ""));
+          } else if (trimmed.startsWith("- ") && !currentSection) {
+            // Bullet before any header — start a fallback section
+            if (!sections.length || sections[sections.length - 1].header !== null) {
+              currentSection = { header: null, bullets: [] };
+            }
+            (currentSection || sections[sections.length - 1]).bullets.push(trimmed.replace(/^-\s*/, ""));
+          }
+        }
+        // Push final section
+        if (currentSection && currentSection.bullets.length > 0) {
+          sections.push(currentSection);
+        }
+
+        if (sections.length && sections.some(s => s.header)) {
+          // Render grouped sections
+          newsContent.innerHTML = sections
+            .filter(s => s.bullets.length > 0)
+            .map(s => {
+              const label = s.header
+                ? `<div class="news-source-label">${escapeHTML(s.header)}</div>`
+                : "";
+              const items = s.bullets
+                .map(b => `<li>${escapeHTML(b)}</li>`)
+                .join("");
+              return `<div class="news-source-group">${label}<ul>${items}</ul></div>`;
+            })
+            .join("");
         } else {
-          // Fallback: render as paragraphs
-          newsContent.innerHTML = text.split(/\n\n+/).filter(p => p.trim())
-            .map(p => `<p style="color:#c8c8d8;line-height:1.75;margin-bottom:12px;">${p}</p>`).join("");
+          // Fallback: flat bullet list
+          const allBullets = lines.filter(l => l.trim().startsWith("- "));
+          if (allBullets.length) {
+            newsContent.innerHTML = "<ul>" +
+              allBullets.map(b => `<li>${escapeHTML(b.replace(/^-\s*/, ""))}</li>`).join("") +
+              "</ul>";
+          } else {
+            newsContent.innerHTML = text.split(/\n\n+/).filter(p => p.trim())
+              .map(p => `<p style="color:#c8c8d8;line-height:1.75;margin-bottom:12px;">${escapeHTML(p)}</p>`).join("");
+          }
         }
 
         requestAnimationFrame(() => {
